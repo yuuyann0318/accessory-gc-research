@@ -1,0 +1,895 @@
+<!doctype html>
+<!-- DESIGN-SPEC v1 実装（全18枚・メモ欄つき・大文字版）。
+     原稿は DESIGN-SPEC.md §4 の確定稿と一字一致。実装裁量は図中ラベルの短縮と改行位置のみ。
+     単一HTML・外部参照ゼロ（外部 http(s) の src/href は0件。出典URLは文字表示のみ）。 -->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<meta name="robots" content="noindex">
+<title>売れたものから、逆算する — アクセサリー グループコンサル</title>
+<style>
+/* ============================================================
+   §1 配色 — 明るい地のみ。純黒は持たない（最暗は --ink-2）。
+   ティール＝図の骨格と勝ち側／ゴールド＝数字と行動だけ。
+   ============================================================ */
+:root{
+  --ink-2:   #202530;
+  --ink-3:   #48505C;
+  --ink-4:   #8E97A3;
+  --line:    #E3E6EA;
+  --paper-3: #EDF0F3;
+  --paper-2: #F6F8FA;
+  --paper:   #FFFFFF;
+
+  --teal:    #00B2AA;
+  --teal-ink:#06736D;
+  --teal-bg: #E0F5F3;
+
+  --gold:    #C9A227;
+  --gold-ink:#8A6A10;
+  --gold-bg: #FBF3DF;
+
+  --memo-bg: #F2F7F7;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;color-scheme:light;background:var(--paper-2)}
+body{
+  margin:0;background:var(--paper-2);color:var(--ink-2);
+  font-family:"Hiragino Sans","ヒラギノ角ゴシック","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",sans-serif;
+  line-height:1.6;letter-spacing:.01em;
+}
+p,h1,h2,h3{margin:0}
+
+/* ============================================================
+   §1 表示形式 — 16:9（論理紙面1280×720）の固定ステージを縦に積む。
+   .fit の実幅に合わせて transform:scale で等比縮小（--s は末尾のインラインJS）。
+   ============================================================ */
+.deck{width:min(1280px,100% - 48px);margin:0 auto;padding:28px 0 56px}
+@media (min-width:1760px){ .deck{margin-right:300px} }
+.slot{margin:0 0 36px}
+.slot:last-child{margin-bottom:0}
+
+.fit{
+  --s:1;position:relative;width:100%;aspect-ratio:1280/720;
+  overflow:hidden;border-radius:18px;background:var(--paper);
+  box-shadow:0 0 0 1px var(--line);
+}
+.fit::after{content:"";position:absolute;left:0;right:0;bottom:0;height:8px;background:var(--teal);z-index:3}
+.stage{
+  position:absolute;top:0;left:0;width:1280px;height:720px;
+  transform:scale(var(--s));transform-origin:top left;display:flex;
+}
+
+/* ============================================================
+   §2 レイアウト — 本文エリア850px ＋ メモ欄430px
+   ============================================================ */
+.main{
+  position:relative;width:850px;flex:none;padding:48px 56px;
+  display:flex;flex-direction:column;gap:22px;overflow:hidden;
+}
+.main--c{justify-content:center}
+.main--t{gap:16px}
+.main > *{position:relative;z-index:1}
+.main > .deco{position:absolute;border-radius:50%;background:var(--teal-bg);z-index:0}
+.main > .deco--g{background:var(--gold-bg)}
+.main > .snum{
+  position:absolute;right:22px;bottom:12px;z-index:2;
+  font-size:20px;font-weight:800;color:var(--ink-4);letter-spacing:.1em;
+}
+.grow{flex:1 1 auto;min-height:0}
+
+/* メモ欄（講師が生徒さんの発言をその場で打つ） */
+.memo{
+  width:430px;flex:none;background:var(--memo-bg);border-left:3px solid #A7DCD8;
+  padding:26px 24px;display:flex;flex-direction:column;
+}
+.memo-h{font-size:28px;font-weight:800;color:var(--ink-2);line-height:1.3}
+.memo-sub{font-size:19px;font-weight:700;color:var(--ink-3);line-height:1.5;margin-top:2px}
+.memo-body{
+  flex:1 1 auto;min-height:0;margin-top:12px;
+  background:var(--paper);border:1.5px solid #CFE6E4;border-radius:10px;
+  padding:14px 16px;font-size:26px;font-weight:500;line-height:1.6;color:var(--ink-2);
+  white-space:pre-wrap;overflow-wrap:break-word;overflow-y:auto;overflow-anchor:none;
+  outline:none;caret-color:var(--teal);
+}
+.memo-body:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(0,178,170,.20)}
+.memo-body:empty::before,
+.memo-body.is-empty:not(:empty)::before{content:"ここに入力";color:#9AA6A5}
+
+/* ============================================================
+   §0-2 タイポ階層（前回より一段大きい。注記・出典・番号以外は26px以上）
+   ============================================================ */
+.pill{
+  display:inline-flex;align-self:flex-start;align-items:center;
+  padding:8px 20px;border-radius:999px;background:var(--teal-bg);
+  color:var(--teal-ink);border:2px solid var(--teal);
+  font-size:26px;font-weight:800;line-height:1.3;
+}
+.h2{font-size:48px;font-weight:800;line-height:1.28;color:var(--ink-2)}
+.h2--s{font-size:44px}
+.big{font-size:72px;font-weight:800;line-height:1.34;color:var(--ink-2);letter-spacing:0}
+.big--cover{font-size:64px}
+.kw{color:var(--teal-ink);border-bottom:6px solid var(--teal);padding-bottom:4px}
+.pre{font-size:28px;font-weight:700;color:var(--ink-3);line-height:1.4}
+.note{font-size:19px;font-weight:600;color:var(--ink-3);line-height:1.55}
+.src{font-size:19px;font-weight:600;color:var(--ink-3);line-height:1.5}
+
+/* ゴールバー（1枚目・ティール面に白文字） */
+.gbar{
+  background:var(--teal-ink);color:var(--paper);border-radius:14px;
+  padding:18px 26px;font-size:28px;font-weight:800;line-height:1.45;text-align:center;
+}
+
+/* コールアウト（1枚1本まで） */
+.callout{
+  display:flex;align-items:flex-start;gap:16px;
+  background:var(--paper-2);border:1.5px solid var(--line);
+  border-left:6px solid var(--teal);border-radius:12px;
+  padding:16px 22px;font-size:28px;font-weight:700;line-height:1.5;color:var(--ink-2);
+}
+/* 吹き出し（チャット参加を視覚で伝える・抽象図形） */
+.bub{
+  flex:none;width:46px;height:34px;margin-top:6px;border-radius:9px;
+  background:var(--teal-bg);border:2.5px solid var(--teal);position:relative;
+}
+.bub::after{content:"";position:absolute;left:9px;bottom:-13px;width:0;height:0;
+  border-left:10px solid transparent;border-right:10px solid transparent;border-top:13px solid var(--teal)}
+.bub::before{content:"";position:absolute;left:12px;bottom:-8px;width:0;height:0;z-index:1;
+  border-left:7px solid transparent;border-right:7px solid transparent;border-top:9px solid var(--teal-bg)}
+
+/* 箇条書き（各1行・折り返し2行まで） */
+.bul{display:flex;gap:14px;font-size:28px;font-weight:700;line-height:1.5;color:var(--ink-2)}
+.bul::before{content:"";flex:none;width:14px;height:14px;margin-top:13px;border-radius:50%;background:var(--teal)}
+
+/* 番号チップの縦積み（4枚目） */
+.nlist{display:flex;flex-direction:column;gap:16px}
+.nrow{
+  display:flex;align-items:center;gap:20px;padding:16px 22px;border-radius:14px;
+  background:var(--paper);border:1.5px solid var(--line);border-left:6px solid var(--teal);
+}
+.nnum{flex:none;font-size:34px;font-weight:800;color:var(--gold-ink);letter-spacing:0;line-height:1.2}
+.ntxt{font-size:34px;font-weight:800;color:var(--ink-2);line-height:1.3}
+
+/* 番号カード（7枚目=2×2 / 8枚目=縦積み） */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.card{
+  background:var(--paper);border:1.5px solid var(--line);border-top:5px solid var(--teal);
+  border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:4px;
+}
+.cnum{
+  display:inline-flex;align-items:center;justify-content:center;align-self:flex-start;
+  min-width:52px;padding:2px 10px;border-radius:9px;background:var(--gold-bg);
+  color:var(--gold-ink);font-size:26px;font-weight:800;letter-spacing:0;line-height:1.4;
+}
+.ctitle{font-size:30px;font-weight:800;color:var(--ink-2);line-height:1.3;letter-spacing:0}
+.cdesc{font-size:26px;font-weight:600;color:var(--ink-3);line-height:1.35;letter-spacing:0}
+.rowcard{
+  display:flex;align-items:center;gap:20px;padding:12px 20px;border-radius:14px;
+  background:var(--paper);border:1.5px solid var(--line);border-left:6px solid var(--teal);
+}
+.rowcard .cbody{min-width:0;flex:1}
+
+/* 章遷移の流れ図（5・10・13枚目） */
+.flow{display:flex;align-items:stretch;gap:10px}
+.fbox{
+  flex:1;min-width:0;display:flex;align-items:center;justify-content:center;text-align:center;
+  background:var(--paper-2);border:1.5px solid var(--line);border-radius:12px;
+  padding:14px 10px;font-size:26px;font-weight:800;color:var(--ink-2);line-height:1.35;letter-spacing:0;
+}
+.fbox--goal{border:3px solid var(--teal);background:var(--paper);color:var(--teal-ink)}
+.farrow{flex:none;display:flex;align-items:center;font-size:28px;font-weight:800;color:var(--ink-4);line-height:1}
+
+/* 左右比較（6・15・18枚目・同座標・同サイズ） */
+.vs{display:flex;align-items:stretch;gap:24px}
+.cmp{
+  flex:1;min-width:0;border:3px solid var(--line);border-radius:16px;background:var(--paper-2);
+  padding:18px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;
+}
+.cmp--w{border:3px solid var(--teal);background:var(--paper)}
+.cmphead{
+  width:100%;padding:8px 10px;border-radius:10px;background:var(--paper-3);
+  color:var(--ink-3);font-size:28px;font-weight:800;line-height:1.3;
+}
+.cmphead--s{font-size:26px}
+.cmp--w .cmphead{background:var(--teal-bg);color:var(--teal-ink)}
+.cmpbody{font-size:26px;font-weight:700;color:var(--ink-2);line-height:1.5;letter-spacing:0}
+
+/* 商品一覧の抽象モック（6枚目・CSSのみ） */
+.mock{display:flex;flex-direction:column;gap:8px;width:100%;
+  background:var(--paper);border:1.5px solid var(--line);border-radius:10px;padding:10px}
+.mrow{display:flex;align-items:center;gap:10px}
+.mth{flex:none;width:38px;height:38px;border-radius:6px;background:var(--paper-3)}
+.mln{flex:1;display:flex;flex-direction:column;gap:6px}
+.mln i{display:block;height:6px;border-radius:3px;background:var(--paper-3)}
+.mln i:last-child{width:58%}
+.mdot{flex:none;width:18px;height:18px;border-radius:50%;background:var(--teal)}
+.cmp--w .mth{background:#DCE9E8}
+
+/* 価格帯の幅（9枚目・CSSのみ） */
+.band{width:100%;padding:30px 12px 0}
+.bandbar{position:relative;height:16px;border-radius:8px;background:var(--paper-3)}
+.bdot{position:absolute;top:-9px;width:34px;height:34px;border-radius:50%;
+  transform:translateX(-50%);background:var(--teal);border:3px solid var(--paper);box-shadow:0 0 0 1.5px var(--teal)}
+.bdot--g{background:#C3C9D1;box-shadow:0 0 0 1.5px #AEB5BE}
+.bandlbl{display:flex;justify-content:space-between;margin-top:20px;
+  font-size:26px;font-weight:800;color:var(--ink-3)}
+
+/* 落札率（14枚目・CSSのみ） */
+.dots10{display:flex;gap:10px;justify-content:center;padding:4px 0}
+.dots10 span{width:48px;height:48px;border-radius:50%;border:3px solid #C3C9D1;background:var(--paper)}
+.dots10 span.on{background:var(--teal);border-color:var(--teal-ink)}
+
+/* 計算表（11・12枚目） */
+.tbl{width:100%;border:1.5px solid var(--line);border-radius:12px;overflow:hidden;background:var(--paper)}
+.trow{display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:6px 20px;border-bottom:1.5px solid var(--line)}
+.trow:last-child{border-bottom:0}
+.trow--sum{background:var(--teal-bg)}
+.tk{font-size:28px;font-weight:700;color:var(--ink-2);line-height:1.3}
+.trow--sum .tk{font-weight:800}
+.tv{font-size:34px;font-weight:800;color:var(--gold-ink);line-height:1.25;letter-spacing:0;white-space:nowrap}
+.calc-in{min-width:190px;text-align:right;border-bottom:3px solid var(--gold);
+  padding:0 8px;outline:none;caret-color:var(--teal)}
+.calc-in:empty::before,
+.calc-in.is-empty:not(:empty)::before{content:"　円";color:#C0AE74}
+.calc-in:focus{background:var(--gold-bg)}
+.eq{font-size:28px;font-weight:800;color:var(--ink-2);letter-spacing:0;line-height:1.4}
+
+/* チェックリスト（17枚目） */
+.chklist{display:flex;flex-direction:column;gap:22px}
+.chk{display:flex;align-items:center;gap:18px;font-size:34px;font-weight:800;color:var(--ink-2);line-height:1.4}
+.chk .cb{flex:none;font-size:40px;font-weight:400;color:var(--gold-ink);line-height:1}
+
+/* ============================================================
+   §2 固定ツールバー（ステージの外・縮尺の影響を受けない）
+   ============================================================ */
+.tbar{
+  position:fixed;top:12px;right:12px;z-index:60;
+  display:flex;flex-direction:column;align-items:flex-end;gap:8px;
+  opacity:.34;transition:opacity .15s;
+}
+.tbar:hover,.tbar:focus-within{opacity:1}
+.tbar button{
+  font:inherit;font-size:18px;font-weight:800;line-height:1.3;
+  color:var(--ink-2);background:var(--paper);border:2px solid var(--teal);
+  border-radius:10px;padding:10px 16px;cursor:pointer;box-shadow:0 2px 8px rgba(32,37,48,.10);
+}
+.tbar button:hover{background:var(--teal-bg)}
+.tbar button:active{transform:translateY(1px)}
+.tmsg{font-size:18px;font-weight:800;color:var(--teal-ink);
+  background:var(--paper);border-radius:8px;padding:4px 10px;min-height:0}
+.shooting .tbar{display:none}
+</style>
+</head>
+<body>
+
+<div class="tbar">
+  <button type="button" id="btn-copy">メモをまとめてコピー</button>
+  <button type="button" id="btn-save">メモを.txtで保存</button>
+  <button type="button" id="btn-clear">メモを全部消す</button>
+  <p class="tmsg" id="tmsg" role="status" aria-live="polite"></p>
+</div>
+
+<main class="deck">
+
+<!-- ==================== 01 表紙 ==================== -->
+<section class="slot">
+  <div class="fit"><div class="stage">
+    <div class="main main--c">
+      <span class="deco" style="width:420px;height:420px;right:-150px;top:-170px"></span>
+      <span class="deco deco--g" style="width:260px;height:260px;left:-120px;bottom:-110px"></span>
+      <p class="big big--cover">売れたものから、<br>逆算する</p>
+      <div style="height:16px"></div>
+      <p class="gbar">今日のゴール：入札する前に、<br>買っていい上限を出せるようになる</p>
+      <p class="snum">01</p>
+    </div>
+    <aside class="memo" data-slide="01" data-title="売れたものから、逆算する">
+      <p class="memo-h">メモ</p>
+      <p class="memo-sub">生徒さんの発言</p>
+      <div class="memo-body" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:memo:01"></div>
+    </aside>
+  </div></div>
+</section>
+
+<!-- ==================== 02 問い ==================== -->
+<section class="slot">
+  <div class="fit"><div class="stage">
+    <div class="main main--c">
+      <span class="deco" style="width:380px;height:380px;right:-140px;bottom:-150px"></span>
+      <p class="big">入札しても、<br>落ちていませんか？</p>
+      <div style="height:20px"></div>
+      <p class="callout"><span class="bub" aria-hidden="true"></span><span>今週、何回入札したか、<br>チャットに送ってください</span></p>
+      <p class="snum">02</p>
+    </div>
+    <aside class="memo" data-slide="02" data-title="入札しても、落ちていませんか？">
+      <p class="memo-h">メモ</p>
+      <p class="memo-sub">生徒さんの発言</p>
+      <div class="memo-body" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:memo:02"></div>
+    </aside>
+  </div></div>
+</section>
+
+<!-- ==================== 03 損失 ==================== -->
+<section class="slot">
+  <div class="fit"><div class="stage">
+    <div class="main">
+      <span class="deco" style="width:300px;height:300px;right:-130px;top:-120px"></span>
+      <p class="h2">探すのは商品ではなく、<br>売れたものです</p>
+      <div class="grow"></div>
+      <p class="bul">出品中の一覧を見て仕入れると、<br>売れていない物を仕入れてしまいます。</p>
+      <p class="bul">仕入れたあとに計算すると、<br>「あれ、残らない」が起きます。</p>
+      <div class="grow"></div>
+      <p class="callout">仕入れの前に、ほとんどが決まっています。</p>
+      <p class="snum">03</p>
+    </div>
+    <aside class="memo" data-slide="03" data-title="探すのは商品ではなく、売れたものです">
+      <p class="memo-h">メモ</p>
+      <p class="memo-sub">生徒さんの発言</p>
+      <div class="memo-body" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:memo:03"></div>
+    </aside>
+  </div></div>
+</section>
+
+<!-- ==================== 04 答え ==================== -->
+<section class="slot">
+  <div class="fit"><div class="stage">
+    <div class="main">
+      <span class="deco" style="width:320px;height:320px;left:-140px;bottom:-140px"></span>
+      <p class="h2">リサーチの手順は、3つです</p>
+      <div class="grow"></div>
+      <div class="nlist">
+        <div class="nrow"><span class="nnum">01</span><p class="ntxt">売り切れだけを見る</p></div>
+        <div class="nrow"><span class="nnum">02</span><p class="ntxt">上限を先に決める</p></div>
+        <div class="nrow"><span class="nnum">03</span><p class="ntxt">10倍、入札する</p></div>
+      </div>
+      <div class="grow"></div>
+      <p class="snum">04</p>
+    </div>
+    <aside class="memo" data-slide="04" data-title="リサーチの手順は、3つです">
+      <p class="memo-h">メモ</p>
+      <p class="memo-sub">生徒さんの発言</p>
+      <div class="memo-body" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:memo:04"></div>
+    </aside>
+  </div></div>
+</section>
+
+<!-- ==================== 05 章扉 手順01 ==================== -->
+<section class="slot">
+  <div class="fit"><div class="stage">
+    <div class="main main--c">
+      <span class="deco" style="width:400px;height:400px;right:-160px;top:-160px"></span>
+      <p class="pill">手順 01／03</p>
+      <p class="pre">まずは、</p>
+      <p class="big"><span class="kw">売り切れだけを、見る</span></p>
+      <div style="height:14px"></div>
+      <div class="flow">
+        <div class="fbox">メルカリで<br>検索する</div>
+        <span class="farrow" aria-hidden="true">→</span>
+        <div class="fbox">「売り切れ」<br>に絞る</div>
+        <span class="farrow" aria-hidden="true">→</span>
+        <div class="fbox fbox--goal">1件から<br>4つ読む</div>
+      </div>
+      <p class="snum">05</p>
+    </div>
+    <aside class="memo" data-slide="05" data-title="売り切れだけを、見る">
+      <p class="memo-h">メモ</p>
+      <p class="memo-sub">生徒さんの発言</p>
+      <div class="memo-body" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:memo:05"></div>
+    </aside>
+  </div></div>
+</section>
+
+<!-- ==================== 06 出品中と売り切れ ==================== -->
+<section class="slot">
+  <div class="fit"><div class="stage">
+    <div class="main main--t">
+      <p class="h2">出品中の一覧は、<br>売れていない物の一覧です</p>
+      <div class="vs">
+        <div class="cmp">
+          <p class="cmphead">出品中</p>
+          <p class="cmpbody">売れていない物の一覧</p>
+          <div class="mock" aria-hidden="true">
+            <div class="mrow"><span class="mth"></span><span class="mln"><i></i><i></i></span></div>
+            <div class="mrow"><span class="mth"></span><span class="mln"><i></i><i></i></span></div>
+            <div class="mrow"><span class="mth"></span><span class="mln"><i></i><i></i></span></div>
+          </div>
+        </div>
+        <div class="cmp cmp--w">
+          <p class="cmphead">売り切れ</p>
+          <p class="cmpbody">起きたことの記録</p>
+          <div class="mock" aria-hidden="true">
+            <div class="mrow"><span class="mth"></span><span class="mln"><i></i><i></i></span><span class="mdot"></span></div>
+            <div class="mrow"><span class="mth"></span><span class="mln"><i></i><i></i></span><span class="mdot"></span></div>
+            <div class="mrow"><span class="mth"></span><span class="mln"><i></i><i></i></span><span class="mdot"></span></div>
+          </div>
+        </div>
+      </div>
+      <p class="note">画面はイメージです</p>
+      <p class="callout">売れたものだけを、見にいってください。</p>
+      <p class="snum">06</p>
+    </div>
+    <aside class="memo" data-slide="06" data-title="出品中の一覧は、売れていない物の一覧です">
+      <p class="memo-h">メモ</p>
+      <p class="memo-sub">生徒さんの発言</p>
+      <div class="memo-body" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:memo:06"></div>
+    </aside>
+  </div></div>
+</section>
+
+<!-- ==================== 07 1件から読み取る4つ ==================== -->
+<section class="slot">
+  <div class="fit"><div class="stage">
+    <div class="main">
+      <span class="deco" style="width:280px;height:280px;right:-130px;bottom:-130px"></span>
+      <p class="h2">1件から、読み取るのは4つ</p>
+      <div class="grow"></div>
+      <div class="grid2">
+        <div class="card"><span class="cnum">01</span><p class="ctitle">いくらで売れたか</p><p class="cdesc">売れた価格</p></div>
+        <div class="card"><span class="cnum">02</span><p class="ctitle">どのくらいで売れたか</p><p class="cdesc">出品から売れるまでの速さ</p></div>
+        <div class="card"><span class="cnum">03</span><p class="ctitle">どんな写真か</p><p class="cdesc">1枚目の作り</p></div>
+        <div class="card"><span class="cnum">04</span><p class="ctitle">どんなタイトルか</p><p class="cdesc">検索に当たった語の並び</p></div>
+      </div>
+      <div class="grow"></div>
+      <p class="snum">07</p>
+    </div>
+    <aside class="memo" data-slide="07" data-title="1件から、読み取るのは4つ">
+      <p class="memo-h">メモ</p>
+      <p class="memo-sub">生徒さんの発言</p>
+      <div class="memo-body" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:memo:07"></div>
+    </aside>
+  </div></div>
+</section>
+
+<!-- ==================== 08 検索語の作り方 ==================== -->
+<section class="slot">
+  <div class="fit"><div class="stage">
+    <div class="main">
+      <p class="h2">検索は、2語から始めて、<br>あとで広げる</p>
+      <div class="grow"></div>
+      <div class="nlist">
+        <div class="rowcard"><span class="cnum">01</span><div class="cbody"><p class="ctitle">刻印×種類で引く</p><p class="cdesc">例: K18 リング</p></div></div>
+        <div class="rowcard"><span class="cnum">02</span><div class="cbody"><p class="ctitle">慣れたら広げる</p><p class="cdesc">ブランド×種類、石×種類</p></div></div>
+        <div class="rowcard"><span class="cnum">03</span><div class="cbody"><p class="ctitle">除外語を入れる</p><p class="cdesc">「メッキ」「GP」を除くと、地金だけに絞れます</p></div></div>
+      </div>
+      <div class="grow"></div>
+      <p class="callout">売るときの語順で、探してください。</p>
+      <p class="snum">08</p>
+    </div>
+    <aside class="memo" data-slide="08" data-title="検索は、2語から始めて、あとで広げる">
+      <p class="memo-h">メモ</p>
+      <p class="memo-sub">生徒さんの発言</p>
+      <div class="memo-body" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:memo:08"></div>
+    </aside>
+  </div></div>
+</section>
+
+<!-- ==================== 09 幅で読む ==================== -->
+<section class="slot">
+  <div class="fit"><div class="stage">
+    <div class="main">
+      <span class="deco" style="width:300px;height:300px;left:-140px;top:-130px"></span>
+      <p class="h2">1件だけ見て、決めない</p>
+      <div class="band" aria-hidden="true">
+        <div class="bandbar">
+          <span class="bdot bdot--g" style="left:2%"></span>
+          <span class="bdot" style="left:20%"></span>
+          <span class="bdot" style="left:34%"></span>
+          <span class="bdot" style="left:48%"></span>
+          <span class="bdot" style="left:61%"></span>
+          <span class="bdot" style="left:76%"></span>
+          <span class="bdot bdot--g" style="left:98%"></span>
+        </div>
+        <div class="bandlbl"><span>安い</span><span>高い</span></div>
+      </div>
+      <div class="grow"></div>
+      <p class="bul">同じ商品でも、売れた価格はバラつきます。</p>
+      <p class="bul">いちばん高い1件は、状態か付属品が違います。</p>
+      <div class="grow"></div>
+      <p class="callout">両端の1件は、基準にしません。</p>
+      <p class="snum">09</p>
+    </div>
+    <aside class="memo" data-slide="09" data-title="1件だけ見て、決めない">
+      <p class="memo-h">メモ</p>
+      <p class="memo-sub">生徒さんの発言</p>
+      <div class="memo-body" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:memo:09"></div>
+    </aside>
+  </div></div>
+</section>
+
+<!-- ==================== 10 章扉 手順02 ==================== -->
+<section class="slot">
+  <div class="fit"><div class="stage">
+    <div class="main main--c">
+      <span class="deco" style="width:400px;height:400px;right:-160px;top:-160px"></span>
+      <p class="pill">手順 02／03</p>
+      <p class="pre">次は、</p>
+      <p class="big"><span class="kw">上限を、先に決める</span></p>
+      <div style="height:14px"></div>
+      <div class="flow">
+        <div class="fbox">売れた価格を<br>見る</div>
+        <span class="farrow" aria-hidden="true">→</span>
+        <div class="fbox">式で引く</div>
+        <span class="farrow" aria-hidden="true">→</span>
+        <div class="fbox fbox--goal">買っていい<br>上限が出る</div>
+      </div>
+      <p class="snum">10</p>
+    </div>
+    <aside class="memo" data-slide="10" data-title="上限を、先に決める">
+      <p class="memo-h">メモ</p>
+      <p class="memo-sub">生徒さんの発言</p>
+      <div class="memo-body" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:memo:10"></div>
+    </aside>
+  </div></div>
+</section>
+
+<!-- ==================== 11 計算例 ==================== -->
+<section class="slot">
+  <div class="fit"><div class="stage">
+    <div class="main main--t">
+      <p class="h2">買っていい上限は、<br>この式で出ます</p>
+      <div class="tbl">
+        <div class="trow"><p class="tk">相場（売れた価格）</p><p class="tv">3,000円</p></div>
+        <div class="trow"><p class="tk">送料等</p><p class="tv">−160円</p></div>
+        <div class="trow"><p class="tk">手数料（10%）</p><p class="tv">−300円</p></div>
+        <div class="trow"><p class="tk">欲しい利益</p><p class="tv">−1,000円</p></div>
+        <div class="trow trow--sum"><p class="tk">仕入価格＋経費</p><p class="tv">1,540円まで</p></div>
+      </div>
+      <p class="eq">3,000 − 160 − 300 − 1,000 ＝ 1,540（円）</p>
+      <div class="grow"></div>
+      <p class="note">計算例です。手数料は販売価格の10%（メルカリ公表値・2026年1月時点）。送料と経費は商品によります。</p>
+      <p class="src">出典: メルカリ公式ヘルプ https://help.jp.mercari.com/guide/articles/65/</p>
+      <p class="snum">11</p>
+    </div>
+    <aside class="memo" data-slide="11" data-title="買っていい上限は、この式で出ます">
+      <p class="memo-h">メモ</p>
+      <p class="memo-sub">生徒さんの発言</p>
+      <div class="memo-body" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:memo:11"></div>
+    </aside>
+  </div></div>
+</section>
+
+<!-- ==================== 12 その場で計算（ワーク） ==================== -->
+<section class="slot">
+  <div class="fit"><div class="stage">
+    <div class="main main--t">
+      <p class="h2">今週、迷った商品で、<br>計算してみましょう</p>
+      <div class="tbl">
+        <div class="trow"><p class="tk">相場（売れた価格）</p><p class="tv calc-in" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:calc:01"></p></div>
+        <div class="trow"><p class="tk">送料等</p><p class="tv calc-in" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:calc:02"></p></div>
+        <div class="trow"><p class="tk">手数料（10%）</p><p class="tv calc-in" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:calc:03"></p></div>
+        <div class="trow"><p class="tk">欲しい利益</p><p class="tv calc-in" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:calc:04"></p></div>
+        <div class="trow trow--sum"><p class="tk">仕入価格＋経費</p><p class="tv calc-in" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:calc:05"></p></div>
+      </div>
+      <div class="grow"></div>
+      <p class="callout"><span class="bub" aria-hidden="true"></span><span>商品名と、売れた価格を、<br>チャットに送ってください</span></p>
+      <p class="snum">12</p>
+    </div>
+    <aside class="memo" data-slide="12" data-title="今週、迷った商品で、計算してみましょう">
+      <p class="memo-h">メモ</p>
+      <p class="memo-sub">生徒さんの発言</p>
+      <div class="memo-body" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:memo:12"></div>
+    </aside>
+  </div></div>
+</section>
+
+<!-- ==================== 13 章扉 手順03 ==================== -->
+<section class="slot">
+  <div class="fit"><div class="stage">
+    <div class="main main--c">
+      <span class="deco" style="width:400px;height:400px;right:-160px;top:-160px"></span>
+      <p class="pill">手順 03／03</p>
+      <p class="pre">最後に、</p>
+      <p class="big"><span class="kw">10倍、入札する</span></p>
+      <div style="height:14px"></div>
+      <div class="flow">
+        <div class="fbox">1個仕入れたい</div>
+        <span class="farrow" aria-hidden="true">→</span>
+        <div class="fbox">落札率は、<br>だいたい10%</div>
+        <span class="farrow" aria-hidden="true">→</span>
+        <div class="fbox fbox--goal">10回、<br>入札する</div>
+      </div>
+      <p class="snum">13</p>
+    </div>
+    <aside class="memo" data-slide="13" data-title="10倍、入札する">
+      <p class="memo-h">メモ</p>
+      <p class="memo-sub">生徒さんの発言</p>
+      <div class="memo-body" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:memo:13"></div>
+    </aside>
+  </div></div>
+</section>
+
+<!-- ==================== 14 落札率 ==================== -->
+<section class="slot">
+  <div class="fit"><div class="stage">
+    <div class="main">
+      <p class="h2">10回入札して、落ちるのは1回。<br>それが普通です</p>
+      <div class="grow"></div>
+      <div class="dots10" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span><span class="on"></span>
+      </div>
+      <div class="grow"></div>
+      <p class="bul">「入札したのに落ちない」のではありません。</p>
+      <p class="bul">「入札の数が、そもそも足りていない」だけです。</p>
+      <div class="grow"></div>
+      <p class="note">落札率10%は、ONEの指導の目安です。統計データではありません。</p>
+      <p class="snum">14</p>
+    </div>
+    <aside class="memo" data-slide="14" data-title="10回入札して、落ちるのは1回。それが普通です">
+      <p class="memo-h">メモ</p>
+      <p class="memo-sub">生徒さんの発言</p>
+      <div class="memo-body" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:memo:14"></div>
+    </aside>
+  </div></div>
+</section>
+
+<!-- ==================== 15 買うか、買わないか ==================== -->
+<section class="slot">
+  <div class="fit"><div class="stage">
+    <div class="main main--t">
+      <p class="h2">上限の中におさまったら、<br>買うか、買わないか</p>
+      <div class="grow"></div>
+      <div class="vs">
+        <div class="cmp cmp--w">
+          <p class="cmphead">買う</p>
+          <p class="cmpbody">売れる → お金が残る</p>
+          <p class="cmpbody">売れない → 相場が分かる</p>
+        </div>
+        <div class="cmp">
+          <p class="cmphead">買わない</p>
+          <p class="cmpbody">何も残らない</p>
+        </div>
+      </div>
+      <div class="grow"></div>
+      <p class="callout">買わないという選択だけが、何も残しません。</p>
+      <p class="note">上限を超えた物を買う話ではありません。</p>
+      <p class="snum">15</p>
+    </div>
+    <aside class="memo" data-slide="15" data-title="上限の中におさまったら、買うか、買わないか">
+      <p class="memo-h">メモ</p>
+      <p class="memo-sub">生徒さんの発言</p>
+      <div class="memo-body" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:memo:15"></div>
+    </aside>
+  </div></div>
+</section>
+
+<!-- ==================== 16 回数 ==================== -->
+<section class="slot">
+  <div class="fit"><div class="stage">
+    <div class="main">
+      <span class="deco" style="width:300px;height:300px;right:-130px;top:-120px"></span>
+      <p class="h2">リサーチは、回数です</p>
+      <div class="grow"></div>
+      <p class="bul">1周目でうまくいく人はいません。</p>
+      <p class="bul">赤字が出たら、<br>その商品の相場を1行メモに残してください。</p>
+      <div class="grow"></div>
+      <p class="callout">誰かが言っていた相場ではなく、自分の相場。<br>これがいちばん強い武器になります。</p>
+      <p class="snum">16</p>
+    </div>
+    <aside class="memo" data-slide="16" data-title="リサーチは、回数です">
+      <p class="memo-h">メモ</p>
+      <p class="memo-sub">生徒さんの発言</p>
+      <div class="memo-body" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:memo:16"></div>
+    </aside>
+  </div></div>
+</section>
+
+<!-- ==================== 17 まとめ ==================== -->
+<section class="slot">
+  <div class="fit"><div class="stage">
+    <div class="main main--c">
+      <span class="deco" style="width:360px;height:360px;left:-150px;bottom:-150px"></span>
+      <p class="pill">まとめ</p>
+      <div style="height:10px"></div>
+      <div class="chklist">
+        <p class="chk"><span class="cb" aria-hidden="true">☐</span>売り切れだけを見る</p>
+        <p class="chk"><span class="cb" aria-hidden="true">☐</span>上限を先に決める</p>
+        <p class="chk"><span class="cb" aria-hidden="true">☐</span>10倍、入札する</p>
+      </div>
+      <p class="snum">17</p>
+    </div>
+    <aside class="memo" data-slide="17" data-title="まとめ">
+      <p class="memo-h">メモ</p>
+      <p class="memo-sub">生徒さんの発言</p>
+      <div class="memo-body" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:memo:17"></div>
+    </aside>
+  </div></div>
+</section>
+
+<!-- ==================== 18 今週やること ==================== -->
+<section class="slot">
+  <div class="fit"><div class="stage">
+    <div class="main main--t">
+      <p class="h2 h2--s">今週、1商品でいいので、<br>上限を出してから入札してください</p>
+      <div class="grow"></div>
+      <div class="vs">
+        <div class="cmp cmp--w">
+          <p class="cmphead cmphead--s">計算してから入札すると</p>
+          <p class="cmpbody">赤字が消えます。</p>
+        </div>
+        <div class="cmp">
+          <p class="cmphead cmphead--s">計算せずに入札すると</p>
+          <p class="cmpbody">「あれ、残らない」が、<br>来週も続きます。</p>
+        </div>
+      </div>
+      <div class="grow"></div>
+      <p class="callout"><span class="bub" aria-hidden="true"></span><span>迷ったら、質問LINEに送ってください。</span></p>
+      <p class="snum">18</p>
+    </div>
+    <aside class="memo" data-slide="18" data-title="今週、1商品でいいので、上限を出してから入札してください">
+      <p class="memo-h">メモ</p>
+      <p class="memo-sub">生徒さんの発言</p>
+      <div class="memo-body" contenteditable="true" spellcheck="false" data-key="gc-research-20261005:memo:18"></div>
+    </aside>
+  </div></div>
+</section>
+
+</main>
+
+<script>
+/* ============================================================
+   論理紙面1280pxを .fit の実幅に合わせて等比縮小（外部JSは使わない）
+   ============================================================ */
+(function () {
+  var fits = document.querySelectorAll('.fit');
+  function apply() {
+    for (var i = 0; i < fits.length; i++) {
+      var w = fits[i].clientWidth;
+      if (w > 0) fits[i].style.setProperty('--s', w / 1280);
+    }
+  }
+  apply();
+  if (window.ResizeObserver) {
+    var ro = new ResizeObserver(apply);
+    for (var j = 0; j < fits.length; j++) ro.observe(fits[j]);
+  }
+  window.addEventListener('resize', apply);
+  window.addEventListener('load', apply);
+})();
+
+/* ============================================================
+   メモ欄（contenteditable）— 保存・復元・コピー・保存・消去
+   ============================================================ */
+(function () {
+  var FILE = 'グルコンメモ_2026-10-05.txt';
+  var store = null;
+  try { store = window.localStorage; store.setItem('gc-research-20261005:probe', '1'); store.removeItem('gc-research-20261005:probe'); }
+  catch (e) { store = null; }
+
+  var cells = [].slice.call(document.querySelectorAll('[data-key]'));
+  var msgEl = document.getElementById('tmsg');
+  var msgTimer = null;
+
+  function msg(t) {
+    msgEl.textContent = t;
+    if (msgTimer) clearTimeout(msgTimer);
+    msgTimer = setTimeout(function () { msgEl.textContent = ''; }, 2600);
+  }
+  function plain(el) {
+    return String(el.innerText || '').replace(/\u00a0/g, ' ').replace(/\r/g, '');
+  }
+  function markEmpty(el) {
+    var t = plain(el);
+    if (t.trim() === '') {
+      if (el.childNodes.length === 1 && el.firstChild.nodeName === 'BR') el.removeChild(el.firstChild);
+      el.classList.add('is-empty');
+    } else {
+      el.classList.remove('is-empty');
+    }
+  }
+  function save(el) {
+    if (!store) return;
+    var t = plain(el).replace(/\s+$/, '');
+    try { if (t === '') store.removeItem(el.dataset.key); else store.setItem(el.dataset.key, t); } catch (e) { /* 保存できなくても入力は続けられる */ }
+  }
+  function insertText(t) {
+    var ok = false;
+    try { ok = document.execCommand('insertText', false, t); } catch (e) { ok = false; }
+    if (ok) return;
+    var s = window.getSelection();
+    if (!s || !s.rangeCount) return;
+    var r = s.getRangeAt(0);
+    r.deleteContents();
+    var n = document.createTextNode(t);
+    r.insertNode(n);
+    r.setStartAfter(n); r.setEndAfter(n);
+    s.removeAllRanges(); s.addRange(r);
+  }
+
+  /* 復元 */
+  cells.forEach(function (el) {
+    var v = null;
+    try { v = store ? store.getItem(el.dataset.key) : null; } catch (e) { v = null; }
+    if (v) el.textContent = v;
+    markEmpty(el);
+    el.addEventListener('input', function () { markEmpty(el); save(el); });
+    el.addEventListener('blur', function () { markEmpty(el); save(el); });
+    el.addEventListener('paste', function (e) {
+      e.preventDefault();
+      var cd = e.clipboardData || window.clipboardData;
+      var t = cd ? (cd.getData('text/plain') || '') : '';
+      if (el.classList.contains('calc-in')) t = t.replace(/[\r\n\t]+/g, ' ');
+      insertText(t);
+      markEmpty(el); save(el);
+    });
+    el.addEventListener('keydown', function (e) {
+      if (el.classList.contains('calc-in') && e.key === 'Enter') e.preventDefault();
+    });
+  });
+
+  /* メモをクリックしても縦スクロール位置が飛ばないようにする */
+  var guardUntil = 0, guardY = 0;
+  document.addEventListener('pointerdown', function (e) {
+    var t = e.target;
+    if (!t || !t.closest || !t.closest('[data-key]')) return;
+    guardY = window.scrollY; guardUntil = Date.now() + 400;
+  }, true);
+  window.addEventListener('scroll', function () {
+    if (Date.now() < guardUntil && Math.abs(window.scrollY - guardY) > 2) window.scrollTo(0, guardY);
+  }, { passive: true });
+  ['wheel', 'touchstart', 'keydown'].forEach(function (ev) {
+    window.addEventListener(ev, function () { guardUntil = 0; }, { passive: true, capture: true });
+  });
+
+  /* まとめテキスト */
+  function buildText() {
+    var out = [];
+    [].slice.call(document.querySelectorAll('aside.memo')).forEach(function (m) {
+      var body = m.querySelector('.memo-body');
+      if (!body) return;
+      var t = plain(body).replace(/\s+$/, '');
+      if (t.trim() === '') return;
+      out.push('【' + m.dataset.slide + '】' + m.dataset.title + '\n' + t);
+    });
+    return out.join('\n\n');
+  }
+  window.__buildMemoText = buildText;
+
+  document.getElementById('btn-copy').addEventListener('click', function () {
+    var t = buildText();
+    if (!t) { msg('メモがまだありません'); return; }
+    window.__lastCopyText = t;
+    var done = function () { msg('コピーしました'); };
+    var fb = function () {
+      var ta = document.createElement('textarea');
+      ta.value = t; ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed'; ta.style.top = '-300px'; ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select(); ta.setSelectionRange(0, ta.value.length);
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      if (ok) done(); else msg('コピーできませんでした');
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, fb);
+    else fb();
+  });
+
+  document.getElementById('btn-save').addEventListener('click', function () {
+    var t = buildText();
+    if (!t) { msg('メモがまだありません'); return; }
+    var b = new Blob([t], { type: 'text/plain;charset=utf-8' });
+    var u = URL.createObjectURL(b);
+    var a = document.createElement('a');
+    a.href = u; a.download = FILE;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(u); a.remove(); }, 1500);
+    msg('保存しました');
+  });
+
+  document.getElementById('btn-clear').addEventListener('click', function () {
+    if (!window.confirm('メモを全部消します。よろしいですか')) return;
+    cells.forEach(function (el) {
+      el.innerHTML = '';
+      markEmpty(el);
+      if (store) { try { store.removeItem(el.dataset.key); } catch (e) { /* 消せないときは画面だけ消える */ } }
+    });
+    msg('全部消しました');
+  });
+})();
+</script>
+</body>
+</html>
